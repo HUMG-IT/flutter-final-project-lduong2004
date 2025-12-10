@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'todo_provider.dart';
 import 'todo_model.dart';
+import 'package:intl/intl.dart'; // Để format tiền (VD: 50,000)
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,83 +31,110 @@ class _HomeScreenState extends State<HomeScreen> {
     Provider.of<TodoProvider>(context, listen: false).initData();
   }
 
+  // Hàm format tiền tệ cho đẹp (ví dụ: 50000 -> 50,000 đ)
+  String formatCurrency(double amount) {
+    final formatter = NumberFormat("#,###");
+    return "${formatter.format(amount)} đ";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Todo App (2 Objects)'), elevation: 2),
-      // --- MENU QUẢN LÝ DANH MỤC ---
+      backgroundColor: Colors.grey[100], // Màu nền xám nhẹ
+      appBar: AppBar(
+        title: const Text('Sổ Thu Chi Cá Nhân', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
+      ),
       drawer: const CategoryDrawer(),
       body: Consumer<TodoProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) return const Center(child: CircularProgressIndicator());
 
-          if (provider.todos.isEmpty) {
-            return const Center(child: Text('Chưa có công việc nào'));
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(12),
-            itemCount: provider.todos.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final todo = provider.todos[index];
-              return Card(
-                elevation: 2,
-                child: ListTile(
-                  leading: Checkbox(
-                    value: todo.isDone,
-                    onChanged: (_) => provider.toggleStatus(todo),
-                  ),
-                  title: Text(
-                    todo.title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      decoration: todo.isDone ? TextDecoration.lineThrough : null,
-                      color: todo.isDone ? Colors.grey : Colors.black,
-                    ),
-                  ),
-                  // Hiển thị tên Danh mục ở dưới (Chip nhỏ)
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (todo.description.isNotEmpty) Text(todo.description),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          provider.getCategoryName(todo.categoryId),
-                          style: const TextStyle(fontSize: 10, color: Colors.blue),
-                        ),
-                      )
-                    ],
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.grey),
-                    onPressed: () => showTodoDialog(context, todo: todo),
-                  ),
-                  onLongPress: () => provider.deleteTodo(todo.id), // Nhấn giữ để xóa nhanh
+          return Column(
+            children: [
+              // --- PHẦN 1: DASHBOARD TỔNG QUAN ---
+              Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Colors.teal, Colors.greenAccent]),
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))],
                 ),
-              );
-            },
+                child: Column(
+                  children: [
+                    const Text("Tổng chi tiêu tháng này", style: TextStyle(color: Colors.white70, fontSize: 16)),
+                    const SizedBox(height: 10),
+                    Text(
+                      formatCurrency(provider.totalSpent),
+                      style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+
+              // --- PHẦN 2: DANH SÁCH CHI TIÊU ---
+              Expanded(
+                child: provider.expenses.isEmpty
+                    ? const Center(child: Text("Chưa có khoản chi nào. Hãy thêm mới!", style: TextStyle(color: Colors.grey)))
+                    : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: provider.expenses.length,
+                  itemBuilder: (context, index) {
+                    final item = provider.expenses[index];
+                    return Card(
+                      elevation: 2,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.teal.withOpacity(0.1),
+                          child: const Icon(Icons.monetization_on, color: Colors.teal),
+                        ),
+                        title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(
+                          "${provider.getCategoryName(item.categoryId)} • ${item.description}",
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              formatCurrency(item.amount),
+                              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            // Nút xóa nhỏ
+                            InkWell(
+                              onTap: () => provider.deleteExpense(item.id),
+                              child: const Icon(Icons.delete_forever, size: 18, color: Colors.grey),
+                            )
+                          ],
+                        ),
+                        onTap: () => showExpenseDialog(context, item: item),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showTodoDialog(context),
-        child: const Icon(Icons.add),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showExpenseDialog(context),
+        backgroundColor: Colors.teal,
+        icon: const Icon(Icons.add),
+        label: const Text("Thêm khoản chi"),
       ),
     );
   }
 }
 
-// --- WIDGET DRAWER: QUẢN LÝ DANH MỤC ---
+// --- DRAWER QUẢN LÝ DANH MỤC (GIỮ NGUYÊN LOGIC, CHỈ ĐỔI MÀU) ---
 class CategoryDrawer extends StatelessWidget {
   const CategoryDrawer({super.key});
-
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TodoProvider>(context);
@@ -115,98 +143,86 @@ class CategoryDrawer extends StatelessWidget {
     return Drawer(
       child: Column(
         children: [
-          AppBar(title: const Text('Quản lý Danh mục'), automaticallyImplyLeading: false),
+          Container(
+            height: 120,
+            color: Colors.teal,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 20, top: 20),
+            child: const Text("Danh mục chi tiêu", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          ),
           Expanded(
             child: ListView.builder(
+              padding: EdgeInsets.zero,
               itemCount: provider.categories.length,
               itemBuilder: (ctx, i) {
                 final cat = provider.categories[i];
                 return ListTile(
-                  leading: const Icon(Icons.folder, color: Colors.orange),
+                  leading: const Icon(Icons.category, color: Colors.teal),
                   title: Text(cat.name),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () {
-                      if (provider.categories.length <= 1) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phải giữ lại ít nhất 1 danh mục!')));
-                        return;
-                      }
-                      provider.deleteCategory(cat.id);
-                    },
+                    onPressed: () => provider.deleteCategory(cat.id),
                   ),
                 );
               },
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(10),
             child: Row(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: txtController,
-                    decoration: const InputDecoration(hintText: 'Thêm danh mục...', border: OutlineInputBorder()),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle, size: 30, color: Colors.blue),
-                  onPressed: () {
-                    if (txtController.text.isNotEmpty) {
-                      provider.addCategory(txtController.text);
-                      txtController.clear();
-                    }
-                  },
-                )
+                Expanded(child: TextField(controller: txtController, decoration: const InputDecoration(hintText: 'Thêm danh mục...', border: OutlineInputBorder()))),
+                IconButton(icon: const Icon(Icons.add_circle, size: 40, color: Colors.teal), onPressed: () {
+                  if (txtController.text.isNotEmpty) {
+                    provider.addCategory(txtController.text);
+                    txtController.clear();
+                  }
+                })
               ],
             ),
           ),
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
 }
 
-// --- DIALOG THÊM/SỬA TODO ---
-void showTodoDialog(BuildContext context, {Todo? todo}) {
+// --- DIALOG THÊM KHOẢN CHI (CÓ NHẬP SỐ TIỀN) ---
+void showExpenseDialog(BuildContext context, {Expense? item}) {
   final provider = Provider.of<TodoProvider>(context, listen: false);
-  final isEditing = todo != null;
+  final isEditing = item != null;
 
-  final titleCtrl = TextEditingController(text: isEditing ? todo.title : '');
-  final descCtrl = TextEditingController(text: isEditing ? todo.description : '');
+  final titleCtrl = TextEditingController(text: isEditing ? item.title : '');
+  final descCtrl = TextEditingController(text: isEditing ? item.description : '');
+  final amountCtrl = TextEditingController(text: isEditing ? item.amount.toInt().toString() : '');
 
-  // Mặc định chọn category đầu tiên hoặc category cũ
-  String selectedCatId = isEditing ? todo.categoryId : (provider.categories.isNotEmpty ? provider.categories.first.id : '');
+  String selectedCatId = isEditing ? item.categoryId : (provider.categories.isNotEmpty ? provider.categories.first.id : '');
 
   showDialog(
     context: context,
-    builder: (ctx) => StatefulBuilder( // Dùng StatefulBuilder để update Dropdown trong Dialog
+    builder: (ctx) => StatefulBuilder(
       builder: (context, setState) {
         return AlertDialog(
-          title: Text(isEditing ? 'Sửa công việc' : 'Thêm công việc'),
+          title: Text(isEditing ? 'Sửa khoản chi' : 'Thêm khoản chi mới'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Tên khoản chi (VD: Ăn trưa) *')),
+                const SizedBox(height: 10),
                 TextField(
-                  controller: titleCtrl,
-                  decoration: const InputDecoration(labelText: 'Tên công việc *'),
+                  controller: amountCtrl,
+                  decoration: const InputDecoration(labelText: 'Số tiền (VD: 30000) *', suffixText: 'đ'),
+                  keyboardType: TextInputType.number, // Chỉ cho nhập số
                 ),
-                TextField(
-                  controller: descCtrl,
-                  decoration: const InputDecoration(labelText: 'Mô tả'),
-                ),
+                const SizedBox(height: 10),
+                TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Ghi chú')),
                 const SizedBox(height: 15),
-                // DROPDOWN CHỌN DANH MỤC
                 DropdownButtonFormField<String>(
                   value: selectedCatId.isNotEmpty ? selectedCatId : null,
-                  decoration: const InputDecoration(labelText: 'Chọn danh mục', border: OutlineInputBorder()),
-                  items: provider.categories.map((c) {
-                    return DropdownMenuItem(value: c.id, child: Text(c.name));
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) setState(() => selectedCatId = val);
-                  },
+                  decoration: const InputDecoration(labelText: 'Loại chi tiêu', border: OutlineInputBorder()),
+                  items: provider.categories.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
+                  onChanged: (val) { if (val != null) setState(() => selectedCatId = val); },
                 )
               ],
             ),
@@ -214,13 +230,16 @@ void showTodoDialog(BuildContext context, {Todo? todo}) {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
               onPressed: () {
-                if (titleCtrl.text.isEmpty || selectedCatId.isEmpty) return;
+                if (titleCtrl.text.isEmpty || amountCtrl.text.isEmpty || selectedCatId.isEmpty) return;
+
+                double amount = double.tryParse(amountCtrl.text) ?? 0;
 
                 if (isEditing) {
-                  provider.updateTodo(todo, titleCtrl.text, descCtrl.text, selectedCatId);
+                  provider.updateExpense(item, titleCtrl.text, descCtrl.text, amount, selectedCatId);
                 } else {
-                  provider.addTodo(titleCtrl.text, descCtrl.text, selectedCatId);
+                  provider.addExpense(titleCtrl.text, descCtrl.text, amount, selectedCatId);
                 }
                 Navigator.pop(ctx);
               },

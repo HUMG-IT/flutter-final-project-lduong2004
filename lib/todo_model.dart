@@ -1,6 +1,6 @@
 import 'package:localstore/localstore.dart';
 
-// --- MODEL 1: DANH MỤC ---
+// --- MODEL 1: DANH MỤC CHI TIÊU ---
 class Category {
   final String id;
   String name;
@@ -14,20 +14,20 @@ class Category {
   }
 }
 
-// --- MODEL 2: CÔNG VIỆC ---
-class Todo {
+// --- MODEL 2: KHOẢN CHI ---
+class Expense {
   final String id;
-  String title;
-  String description;
-  bool isDone;
+  String title;       // Tên khoản chi (vd: Phở bò)
+  String description; // Ghi chú (vd: Ăn sáng)
+  double amount;      // Số tiền (vd: 35000)
   final DateTime createdAt;
-  String categoryId; // Liên kết với Category
+  String categoryId;
 
-  Todo({
+  Expense({
     required this.id,
     required this.title,
     this.description = '',
-    this.isDone = false,
+    required this.amount,
     required this.createdAt,
     required this.categoryId,
   });
@@ -37,18 +37,18 @@ class Todo {
       'id': id,
       'title': title,
       'description': description,
-      'isDone': isDone,
+      'amount': amount,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'categoryId': categoryId,
     };
   }
 
-  factory Todo.fromMap(Map<String, dynamic> map) {
-    return Todo(
+  factory Expense.fromMap(Map<String, dynamic> map) {
+    return Expense(
       id: map['id'],
       title: map['title'],
       description: map['description'] ?? '',
-      isDone: map['isDone'] ?? false,
+      amount: (map['amount'] ?? 0).toDouble(),
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
       categoryId: map['categoryId'] ?? '',
     );
@@ -59,15 +59,10 @@ class Todo {
 extension ExtLocalStore on Object {
   Future saveToCollection(String collection) async {
     final db = Localstore.instance;
-    // Tự động detect loại object để lấy ID (đơn giản hóa)
     if (this is Category) {
       return db.collection(collection).doc((this as Category).id).set((this as Category).toMap());
-    } else if (this is Todo) {
-      return db.collection(collection).doc((this as Todo).id).set((this as Todo).toMap());
+    } else if (this is Expense) {
+      return db.collection(collection).doc((this as Expense).id).set((this as Expense).toMap());
     }
-  }
-
-  Future deleteFromCollection(String collection, String id) async {
-    return Localstore.instance.collection(collection).doc(id).delete();
   }
 }
